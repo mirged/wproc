@@ -10,6 +10,7 @@ void mem_usage_compute(const struct procfs_meminfo *in, struct mem_usage *out) {
 
     out->total_kb      = in->total_kb;
     out->available_kb  = available;
+    out->free_kb       = MIN(in->free_kb, available);
     out->used_kb       = in->total_kb - available;
     out->cached_kb     = in->cached_kb + in->sreclaimable_kb;
     out->buffers_kb    = in->buffers_kb;

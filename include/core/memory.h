@@ -8,6 +8,7 @@ struct mem_usage {
     u64 total_kb;
     u64 used_kb;        // total - available
     u64 available_kb;
+    u64 free_kb;        // completely unused
     u64 cached_kb;      // page cache + reclaimable slab
     u64 buffers_kb;
     u64 swap_total_kb;
