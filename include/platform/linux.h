@@ -1,19 +1,7 @@
 #ifndef WPROC_PLATFORM_LINUX_H
 #define WPROC_PLATFORM_LINUX_H
 
-// Freestanding fixed-width types (no <stdint.h> / <stddef.h> needed)
-typedef unsigned long      u64;
-typedef long               i64;
-typedef unsigned int       u32;
-typedef int                i32;
-typedef unsigned short     u16;
-typedef short              i16;
-typedef unsigned char      u8;
-typedef signed char        i8;
-typedef unsigned long      usize;
-typedef long               isize;
-
-#define NULL ((void *)0)
+#include "util/types.h"
 
 // File & directory flags
 #define AT_FDCWD        -100

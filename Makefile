@@ -7,6 +7,7 @@ CFLAGS  := -std=c11 -Wall -Wextra \
            -ffreestanding -fno-builtin -nostdlib -static \
            -fno-stack-protector -fno-unwind-tables \
            -fno-asynchronous-unwind-tables \
+           -fno-tree-loop-distribute-patterns \
            -O2 -s -Iinclude
 
 DEPFLAGS := -MMD -MP
@@ -35,7 +36,7 @@ $(OBJ_DIR)/%.o: src/%.c
 
 debug: CFLAGS := -std=c11 -Wall -Wextra -g -O0 \
                  -ffreestanding -fno-builtin -nostdlib -static \
-                 -fno-stack-protector -Iinclude
+                 -fno-stack-protector -fno-tree-loop-distribute-patterns -Iinclude
 debug: clean all
 
 clean:
