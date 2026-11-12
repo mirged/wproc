@@ -1,6 +1,6 @@
 #include "platform/linux.h"
 
-static usize str_len(const char *s) {
+static usize local_str_len(const char *s) {
     usize len = 0;
     while (s[len]) len++;
     return len;
@@ -20,7 +20,7 @@ void entry(i64 argc, char **argv) {
     while ((nread = sys_getdents64(fd, buf, sizeof(buf))) > 0) {
         for (isize bpos = 0; bpos < nread;) {
             struct linux_dirent64 *d = (struct linux_dirent64 *)(buf + bpos);
-            sys_write(STDOUT_FILENO, d->d_name, str_len(d->d_name));
+            sys_write(STDOUT_FILENO, d->d_name, local_str_len(d->d_name));
             sys_write(STDOUT_FILENO, "\n", 1);
             bpos += d->d_reclen;
         }
