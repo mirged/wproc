@@ -3,6 +3,17 @@
 #include "util/parse.h"
 #include "util/string.h"
 
+// /proc/<pid>/statm: "size resident shared text lib data dt", in pages.
+static bool read_statm_rss(u32 pid, struct buffer *scratch, u64 *out) {
+    char path[48];
+    if (!procfs_pid_path(path, sizeof(path), pid, "statm")) return false;
+    if (!file_read_all(path, scratch)) return false;
+
+    struct cursor c;
+    cur_init(&c, (const char *)scratch->data, scratch->len);
+    return cur_skip_field(&c) && cur_u64(&c, out);
+}
+
 // /proc/<pid>/stat looks like:
 //
 //   1234 (some name) S 1 1234 1234 0 -1 4194560 ...
@@ -63,7 +74,12 @@ bool procfs_read_process(u32 pid, struct procfs_process *out, struct buffer *scr
     out->ppid = (u32)ppid;
     out->nice = (i32)nice;
     out->threads = (u32)threads;
-    out->rss_pages = rss_raw;
+
+    // stat's rss comes from the kernel's approximate per-cpu counters and
+    // can be off by megabytes (or read 0 for small processes). statm sums
+    // them properly. Keep the stat value only as a fallback.
+    u64 statm_rss;
+    out->rss_pages = read_statm_rss(pid, scratch, &statm_rss) ? statm_rss : rss_raw;
     return true;
 }
 
