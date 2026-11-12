@@ -79,6 +79,21 @@ static i32 parse_args(i32 argc, char **argv, struct options *o) {
         const char *a = argv[i];
         const char *val = i + 1 < argc ? argv[i + 1] : NULL;
 
+        // "-n5" means "-n 5".
+        char flag[3];
+        bool takes_value = a[0] == '-' && a[1] && str_len(a) > 2 &&
+                           (a[1] == 'd' || a[1] == 'n' || a[1] == 'l' ||
+                            a[1] == 's' || a[1] == 'r' || a[1] == 'p');
+        bool glued = takes_value;
+        if (glued) {
+            flag[0] = '-';
+            flag[1] = a[1];
+            flag[2] = '\0';
+            val = a + 2;
+            a = flag;
+            i--;  // the "i++" below for the value must not skip an argument
+        }
+
         if (str_eq(a, "-h") || str_eq(a, "--help")) {
             file_write_str(STDOUT, usage);
             return 1;
@@ -150,6 +165,21 @@ static bool source_seek(struct source *src, usize frame) {
     return true;
 }
 
+// Jump anywhere and refill the cpu history from the frames before it,
+// so the sparkline looks the same as if we had played up to here.
+static bool source_jump(struct source *src, usize frame, struct history *h) {
+    usize count = player_frame_count(src->player);
+    if (frame >= count) frame = count - 1;
+    usize from = frame >= HISTORY_MAX ? frame - HISTORY_MAX + 1 : 0;
+
+    history_clear(h);
+    for (usize i = from; i <= frame; i++) {
+        if (!source_seek(src, i)) return false;
+        history_push(h, &src->play_snap);
+    }
+    return true;
+}
+
 static bool source_record(struct source *src) {
     if (!src->recorder) return true;
     if (recorder_write(src->recorder, monitor_snapshot(src->monitor))) return true;
@@ -216,14 +246,13 @@ static i32 run_batch(struct source *src, const struct options *o) {
 
 // ---- interactive ---------------------------------------------------------
 
-#define KEYS_HINT      " q quit  P/M/N/T/A sort  r rev  c cmd  space pause  +/- speed"
-#define KEYS_HINT_PLAY " q quit  P/M/N/T/A sort  r rev  c cmd  space pause  <-/-> step  [/] skip 10"
 
 struct app {
     struct terminal   term;
     struct view_state vs;
     struct buffer     out;
     struct vector     order;
+    struct history    history;
     char              mode[64];
     bool              paused;
     bool              quit;
@@ -235,7 +264,8 @@ static void app_init(struct app *a, const struct options *o) {
     view_state_init(&a->vs);
     a->vs.sort = o->sort;
     a->vs.mode = a->mode;
-    a->vs.keys_hint = KEYS_HINT;
+    a->vs.history = &a->history;
+    history_clear(&a->history);
     buf_init(&a->out);
     vec_init(&a->order, sizeof(const struct process *));
     a->mode[0] = '\0';
@@ -253,21 +283,28 @@ static void app_free(struct app *a) {
 static void set_mode(struct app *a, const struct source *src) {
     struct buffer b;
     buf_init(&b);
+    char t[32];
     if (src->player) {
-        char t[32];
         u64 elapsed = src->play_snap.time_ms - src->player->first_time_ms;
-        buf_append_str(&b, "play ");
+        buf_append_str(&b, "frame ");
         buf_append_u64(&b, src->frame + 1);
         buf_append_char(&b, '/');
         buf_append_u64(&b, player_frame_count(src->player));
-        buf_append_str(&b, " +");
+        buf_append_str(&b, "  +");
         buf_append(&b, t, time_format_uptime(t, elapsed / 1000));
     } else {
-        buf_append_str(&b, src->recorder ? "rec" : "live");
+        buf_append_str(&b, src->recorder ? "recording" : "live");
     }
-    buf_append_str(&b, a->paused ? " paused " : " ");
-    buf_append_u64(&b, a->interval_ms);
-    buf_append_str(&b, "ms");
+    buf_append_str(&b, a->paused ? "  paused" : "  every ");
+    if (!a->paused) {
+        if (a->interval_ms < 1000) {
+            buf_append_u64(&b, a->interval_ms);
+            buf_append_str(&b, "ms");
+        } else {
+            buf_append(&b, t, str_from_fixed(t, a->interval_ms / 100, 1));
+            buf_append_char(&b, 's');
+        }
+    }
     str_copy(a->mode, sizeof(a->mode), buf_cstr(&b));
     buf_free(&b);
 }
@@ -305,6 +342,7 @@ static bool handle_key(struct app *a, const struct key_event *ev) {
     case KEY_PAGE_DOWN: *scroll += page; return true;
     case KEY_HOME:      *scroll = 0; return true;
     case KEY_END:       *scroll = (usize)-1 / 2; return true;
+    case KEY_ESCAPE:    a->vs.show_help = false; return true;
     case KEY_CHAR:      break;
     default:            return false;
     }
@@ -323,7 +361,11 @@ static bool handle_key(struct app *a, const struct key_event *ev) {
         a->resort = true;
         return true;
     case 'c':
-        a->vs.show_cmdline = !a->vs.show_cmdline;
+        a->vs.cmd = a->vs.cmd == CMD_ARGS ? CMD_FULL
+                  : a->vs.cmd == CMD_FULL ? CMD_HIDDEN : CMD_ARGS;
+        return true;
+    case '?': case 'h':
+        a->vs.show_help = !a->vs.show_help;
         return true;
     case 'k': if (*scroll) (*scroll)--; return true;
     case 'j': (*scroll)++; return true;
@@ -357,7 +399,7 @@ static bool handle_play_key(struct app *a, struct source *src, const struct key_
     usize target = step < 0
         ? (src->frame > (usize)-step ? src->frame - (usize)-step : 0)
         : src->frame + (usize)step;
-    if (source_seek(src, target)) {
+    if (source_jump(src, target, &a->history)) {
         a->paused = true;
         a->vs.message = src->at_end ? "end of recording" : NULL;
         a->resort = true;
@@ -370,7 +412,8 @@ static i32 run_interactive(struct app *a, struct source *src, const struct optio
     u64 next = time_now_ms() + a->interval_ms;
     bool dirty = true;
 
-    if (src->player) a->vs.keys_hint = KEYS_HINT_PLAY;
+    a->vs.playback = src->player != NULL;
+    history_push(&a->history, source_snapshot(src));
 
     while (!a->quit) {
         if (dirty) {
@@ -391,6 +434,7 @@ static i32 run_interactive(struct app *a, struct source *src, const struct optio
                                             : "failed to read /proc. retrying.";
             } else {
                 a->vs.message = NULL;
+                history_push(&a->history, source_snapshot(src));
                 if (o->count && ++updates >= o->count) break;
             }
             a->resort = true;

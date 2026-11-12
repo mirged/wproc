@@ -14,14 +14,33 @@ enum sort_key {
     SORT_NAME,
 };
 
+enum cmd_mode {
+    CMD_ARGS,    // arguments only; the name column already says what it is
+    CMD_FULL,    // the whole command line
+    CMD_HIDDEN,
+};
+
+// Recent system CPU samples for the sparkline, oldest first.
+#define HISTORY_MAX 160
+
+struct history {
+    u16   cpu[HISTORY_MAX];   // permille
+    usize len;
+};
+
+void history_clear(struct history *h);
+void history_push(struct history *h, const struct snapshot *snap);
+
 struct view_state {
-    enum sort_key sort;
-    bool          reverse;
-    bool          show_cmdline;
-    usize         scroll;
-    const char   *mode;       // shown in the summary line, e.g. "live"
-    const char   *message;    // optional status line
-    const char   *keys_hint;  // footer text
+    enum sort_key         sort;
+    bool                  reverse;
+    enum cmd_mode         cmd;
+    bool                  show_help;
+    bool                  playback;   // adds the frame keys to the help
+    usize                 scroll;
+    const char           *mode;       // right side of the title strip
+    const char           *message;    // optional status line
+    const struct history *history;    // optional
 };
 
 void        view_state_init(struct view_state *vs);
@@ -40,7 +59,7 @@ void render_screen(struct buffer *out, const struct snapshot *snap,
                    struct view_state *vs, const struct vector *order,
                    u16 rows, u16 cols);
 
-// Plain text for pipes and batch mode; appends to `out`.
+// Plain ASCII for pipes and batch mode; appends to `out`.
 // max_rows == 0 means every process.
 void render_plain(struct buffer *out, const struct snapshot *snap,
                   const struct view_state *vs, const struct vector *order,
