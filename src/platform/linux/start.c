@@ -36,6 +36,9 @@ void linux_start(u64 *sp) {
 }
 
 __attribute__((naked, noreturn))
+void _start(void);
+
+__attribute__((naked, noreturn))
 void _start(void) {
     __asm__ volatile (
         "xor %rbp, %rbp\n"      // mark the outermost frame
