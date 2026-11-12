@@ -22,7 +22,7 @@ SRCS := $(wildcard src/*.c \
 OBJS := $(patsubst src/%.c, $(OBJ_DIR)/%.o, $(SRCS))
 DEPS := $(OBJS:.o=.d)
 
-.PHONY: all clean debug
+.PHONY: all clean debug test
 
 all: $(TARGET)
 
@@ -38,6 +38,9 @@ debug: CFLAGS := -std=c11 -Wall -Wextra -g -O0 \
                  -ffreestanding -fno-builtin -nostdlib -static \
                  -fno-stack-protector -fno-tree-loop-distribute-patterns -Iinclude
 debug: clean all
+
+test:
+	$(MAKE) -C tests
 
 clean:
 	rm -rf $(OUT_DIR)
