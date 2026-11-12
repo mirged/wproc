@@ -14,6 +14,7 @@
 //     u16    version
 //     u16    header size in bytes (from the start of the file)
 //     u32    interval_ms
+//     str    hostname                    (added later; absent if size == 16)
 //
 //   frame (repeated until EOF):
 //     u32    payload size
@@ -38,8 +39,9 @@
 #define FORMAT_HEADER_SIZE 16
 
 struct format_header {
-    u16 version;
-    u32 interval_ms;
+    u16  version;
+    u32  interval_ms;
+    char hostname[PROCFS_HOSTNAME_MAX];
 };
 
 // ---- primitives ----------------------------------------------------------

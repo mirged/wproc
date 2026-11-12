@@ -85,6 +85,10 @@ TEST(test_system_files) {
     CHECK(procfs_read_loadavg(&load, &scratch));
     CHECK(load.total >= 1);
 
+    char host[PROCFS_HOSTNAME_MAX];
+    CHECK(procfs_read_hostname(host, sizeof(host), &scratch));
+    CHECK(str_len(host) > 0 && host[str_len(host) - 1] != '\n');
+
     u64 up = 0;
     CHECK(procfs_read_uptime(&up, &scratch));
     CHECK(up > 0);

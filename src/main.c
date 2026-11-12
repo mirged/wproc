@@ -457,7 +457,7 @@ static i32 run_live(const struct wproc_startup *s, const struct options *o) {
     i32 rc = 1;
 
     if (o->record_path) {
-        if (!recorder_open(&rec, o->record_path, (u32)o->interval_ms)) {
+        if (!recorder_open(&rec, o->record_path, (u32)o->interval_ms, m.hostname)) {
             file_write_str(STDERR, "wproc: cannot create ");
             file_write_str(STDERR, o->record_path);
             file_write_str(STDERR, "\n");

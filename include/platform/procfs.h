@@ -67,6 +67,10 @@ struct procfs_loadavg {
 bool procfs_read_loadavg(struct procfs_loadavg *out, struct buffer *scratch);
 bool procfs_read_uptime(u64 *seconds, struct buffer *scratch);
 
+// /proc/sys/kernel/hostname, newline stripped.
+#define PROCFS_HOSTNAME_MAX 65  // HOST_NAME_MAX + 1
+bool procfs_read_hostname(char *out, usize cap, struct buffer *scratch);
+
 // ---- system memory -------------------------------------------------------
 
 struct procfs_meminfo {

@@ -70,10 +70,12 @@ void wr_str(struct buffer *b, const char *s) {
 // ---- header --------------------------------------------------------------
 
 void format_write_header(struct buffer *out, const struct format_header *h) {
+    usize name_len = str_len(h->hostname);
     buf_append(out, FORMAT_MAGIC, FORMAT_MAGIC_LEN);
     wr_u16(out, FORMAT_VERSION);
-    wr_u16(out, FORMAT_HEADER_SIZE);
+    wr_u16(out, (u16)(FORMAT_HEADER_SIZE + 2 + name_len));
     wr_u32(out, h->interval_ms);
+    wr_str(out, h->hostname);
 }
 
 bool format_read_header(struct reader *r, struct format_header *h) {
@@ -88,7 +90,15 @@ bool format_read_header(struct reader *r, struct format_header *h) {
 
     if (r->failed || h->version != FORMAT_VERSION || size < FORMAT_HEADER_SIZE) return false;
 
+    // Optional fields, bounded by the declared header size.
+    struct reader rest;
     usize consumed = (usize)(r->p - start);
+    if (size - consumed > rd_remaining(r)) return false;
+    rd_init(&rest, r->p, size - consumed);
+    h->hostname[0] = '\0';
+    if (rd_remaining(&rest) >= 2) rd_str(&rest, h->hostname, sizeof(h->hostname));
+    if (rest.failed) h->hostname[0] = '\0';
+
     return rd_skip(r, size - consumed);
 }
 
@@ -179,6 +189,7 @@ bool format_read_frame(struct reader *outer, struct snapshot *s, struct vector *
     rd_init(r, payload, len);
 
     mem_set(s, 0, sizeof(*s));
+    s->hostname = "";
     s->time_ms = rd_u64(r);
     s->uptime_s = rd_u64(r);
     for (usize i = 0; i < 3; i++) s->load_x100[i] = rd_u32(r);

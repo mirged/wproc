@@ -10,6 +10,8 @@ bool monitor_init(struct monitor *m, u64 clk_tck, u64 page_size) {
     m->clk_tck = clk_tck ? clk_tck : 100;
     m->page_kb = page_size >= 1024 ? page_size / 1024 : 4;
     m->snap.procs = &m->table.procs;
+    procfs_read_hostname(m->hostname, sizeof(m->hostname), &m->scratch);
+    m->snap.hostname = m->hostname;
     return true;
 }
 

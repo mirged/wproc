@@ -30,14 +30,16 @@ TEST(test_little_endian) {
 TEST(test_header) {
     struct buffer b;
     buf_init(&b);
-    struct format_header h = { FORMAT_VERSION, 750 }, got;
+    struct format_header h = { FORMAT_VERSION, 750, "box" }, got;
     format_write_header(&b, &h);
-    CHECK(b.len == FORMAT_HEADER_SIZE);
+    CHECK(b.len == FORMAT_HEADER_SIZE + 2 + 3);
 
     struct reader r;
     rd_init(&r, b.data, b.len);
     CHECK(format_read_header(&r, &got));
     CHECK(got.version == FORMAT_VERSION && got.interval_ms == 750);
+    CHECK_STR(got.hostname, "box");
+    CHECK(rd_remaining(&r) == 0);
 
     b.data[0] = 'X';
     rd_init(&r, b.data, b.len);
@@ -50,12 +52,19 @@ TEST(test_header) {
     b.data[8] = FORMAT_VERSION;
 
     // A larger header from a future minor revision is skipped over.
-    b.data[10] = FORMAT_HEADER_SIZE + 4;
+    b.data[10] = (u8)(b.len + 4);
     wr_u32(&b, 0xdeadbeef);
     wr_u32(&b, 0x12345678);
     rd_init(&r, b.data, b.len);
     CHECK(format_read_header(&r, &got));
+    CHECK_STR(got.hostname, "box");
     CHECK(rd_u32(&r) == 0x12345678);
+
+    // An original 16-byte header (no hostname) still reads.
+    b.data[10] = FORMAT_HEADER_SIZE;
+    rd_init(&r, b.data, FORMAT_HEADER_SIZE);
+    CHECK(format_read_header(&r, &got));
+    CHECK_STR(got.hostname, "");
     buf_free(&b);
 }
 

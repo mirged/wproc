@@ -15,7 +15,7 @@ struct recorder {
     u64           frames;
 };
 
-bool recorder_open(struct recorder *r, const char *path, u32 interval_ms);
+bool recorder_open(struct recorder *r, const char *path, u32 interval_ms, const char *hostname);
 bool recorder_write(struct recorder *r, const struct snapshot *snap);
 void recorder_close(struct recorder *r);
 

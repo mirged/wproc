@@ -67,6 +67,15 @@ bool procfs_read_loadavg(struct procfs_loadavg *out, struct buffer *scratch) {
     return cur_u64(&c, &out->total);
 }
 
+bool procfs_read_hostname(char *out, usize cap, struct buffer *scratch) {
+    if (cap) out[0] = '\0';
+    if (!file_read_all("/proc/sys/kernel/hostname", scratch)) return false;
+    usize n = scratch->len;
+    while (n > 0 && (scratch->data[n - 1] == '\n' || scratch->data[n - 1] == ' ')) n--;
+    str_copy_n(out, cap, (const char *)scratch->data, n);
+    return n > 0;
+}
+
 // "12345.67 98765.43"
 bool procfs_read_uptime(u64 *seconds, struct buffer *scratch) {
     if (!file_read_all("/proc/uptime", scratch)) return false;

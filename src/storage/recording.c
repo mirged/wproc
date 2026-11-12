@@ -10,13 +10,14 @@ static bool flush(struct recorder *r) {
     return ok;
 }
 
-bool recorder_open(struct recorder *r, const char *path, u32 interval_ms) {
+bool recorder_open(struct recorder *r, const char *path, u32 interval_ms, const char *hostname) {
     buf_init(&r->buf);
     r->frames = 0;
     r->fd = file_create(path);
     if (r->fd < 0) return false;
 
     struct format_header h = { .version = FORMAT_VERSION, .interval_ms = interval_ms };
+    str_copy(h.hostname, sizeof(h.hostname), hostname ? hostname : "");
     format_write_header(&r->buf, &h);
     if (!flush(r)) {
         recorder_close(r);
@@ -89,7 +90,9 @@ bool player_load(struct player *p, usize index, struct snapshot *out) {
 
     struct reader r;
     rd_init(&r, p->file.data + *offset, p->file.len - *offset);
-    return format_read_frame(&r, out, &p->procs);
+    if (!format_read_frame(&r, out, &p->procs)) return false;
+    out->hostname = p->header.hostname;
+    return true;
 }
 
 void player_close(struct player *p) {

@@ -11,6 +11,7 @@
 // Everything a frontend needs to draw one frame. Produced by the monitor
 // (live) or by the recording player (playback); the UI does not care which.
 struct snapshot {
+    const char *hostname;    // borrowed, never NULL
     u64 time_ms;             // monotonic timestamp of the sample
     u64 uptime_s;
     u32 load_x100[3];
@@ -33,6 +34,7 @@ struct monitor {
     struct buffer        scratch;  // scratch for file reads
     struct snapshot      snap;
     u64                  updates;
+    char                 hostname[PROCFS_HOSTNAME_MAX];
 };
 
 bool monitor_init(struct monitor *m, u64 clk_tck, u64 page_size);
