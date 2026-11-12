@@ -1,40 +1,16 @@
-#include "platform/linux.h"
+#include "wproc.h"
+#include "platform/file.h"
+#include "util/buffer.h"
 
-static usize local_str_len(const char *s) {
-    usize len = 0;
-    while (s[len]) len++;
-    return len;
-}
-
-void entry(i64 argc, char **argv) {
-    const char *path = (argc > 1) ? argv[1] : "/proc";
-
-    i32 fd = sys_openat(AT_FDCWD, path, O_RDONLY | O_DIRECTORY, 0);
-    if (fd < 0) {
-        sys_exit_group(1);
-    }
-
-    char buf[4096];
-    isize nread;
-
-    while ((nread = sys_getdents64(fd, buf, sizeof(buf))) > 0) {
-        for (isize bpos = 0; bpos < nread;) {
-            struct linux_dirent64 *d = (struct linux_dirent64 *)(buf + bpos);
-            sys_write(STDOUT_FILENO, d->d_name, local_str_len(d->d_name));
-            sys_write(STDOUT_FILENO, "\n", 1);
-            bpos += d->d_reclen;
-        }
-    }
-
-    sys_close(fd);
-    sys_exit_group(0);
-}
-
-__attribute__((naked)) void _start(void) {
-    __asm__ volatile (
-        "mov (%rsp), %rdi\n"
-        "lea 8(%rsp), %rsi\n"
-        "and $-16, %rsp\n"
-        "call entry\n"
-    );
+i32 wproc_main(const struct wproc_startup *s) {
+    struct buffer out;
+    buf_init(&out);
+    buf_append_str(&out, "clk_tck=");
+    buf_append_u64(&out, s->clk_tck);
+    buf_append_str(&out, " page_size=");
+    buf_append_u64(&out, s->page_size);
+    buf_append_char(&out, '\n');
+    bool ok = !out.failed && file_write_all(1, out.data, out.len);
+    buf_free(&out);
+    return ok ? 0 : 1;
 }
